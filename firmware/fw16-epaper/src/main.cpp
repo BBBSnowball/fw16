@@ -97,7 +97,12 @@ void setup() {
   epd.Clear(EPD_4IN01F_CLEAN);
   
   Serial.print("draw image\r\n ");
-  epd.EPD_4IN01F_Display_part(gImage_4in01f, 204, 153, 192, 143);
+  if (1) {
+    epd.EPD_4IN01F_Display_part(gImage_4in01f, 204, 153, 192, 143);
+  } else {
+    // doesn't work, window is ignored and it does a full refresh with wrong data
+    epd.EPD_4IN01F_Display_part2(gImage_4in01f, 204, 152, 192, 142);
+  }
 }
 
 void loop() {

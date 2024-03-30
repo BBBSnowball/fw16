@@ -65,8 +65,11 @@ public:
     void EPD_4IN01F_Display(const UBYTE *image);
     void EPD_4IN01F_Display_part(const UBYTE *image, UWORD xstart, UWORD ystart, 
                                  UWORD image_width, UWORD image_heigh);
+    void EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystart, 
+                                 UWORD image_width, UWORD image_heigh);
     void SendCommand(unsigned char command);
     void SendData(unsigned char data);
+    void SendData16(uint16_t data);
     void SetResolution(uint16_t width = EPD_WIDTH, uint16_t height = EPD_HEIGHT);
     void Sleep(void);
     void Clear(UBYTE color);
