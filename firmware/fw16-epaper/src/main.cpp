@@ -92,7 +92,9 @@ void setup() {
   }
   
   Serial.print("e-Paper Clear\r\n ");
-  epd.Clear(EPD_4IN01F_WHITE);
+  //epd.Clear(EPD_4IN01F_WHITE);
+  // reference PDF says to clear with 0x77
+  epd.Clear(EPD_4IN01F_CLEAN);
   
   Serial.print("draw image\r\n ");
   epd.EPD_4IN01F_Display_part(gImage_4in01f, 204, 153, 192, 143);

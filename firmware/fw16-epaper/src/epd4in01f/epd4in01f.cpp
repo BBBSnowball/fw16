@@ -45,27 +45,42 @@ Epd::Epd() {
     height = EPD_HEIGHT;
 };
 
+enum EPD_Command {
+    CMD_POWER_OFF = 0x02,
+    CMD_POWER_ON  = 0x04,
+    CMD_BOOSTER_SOFT_START = 0x06,
+    CMD_DEEP_SLEEP = 0x07,
+};
+
+void Epd::SetResolution(uint16_t width, uint16_t height) {
+	SendCommand(0x61);
+	SendData(width >> 8);
+	SendData(width & 0xff);
+	SendData(height >> 8);
+	SendData(height & 0xff);
+}
+
 /******************************************************************************
 function :  Initialize the e-Paper register
 parameter:
 ******************************************************************************/
 int Epd::Init(void) {
 	if (IfInit() != 0) {
-	return -1;
+	    return -1;
 	}
 	Reset();
 	EPD_4IN01F_BusyHigh();
-	SendCommand(0x00);
+	SendCommand(0x00);  // panel setting?
 	SendData(0x2f);
 	SendData(0x00);
-	SendCommand(0x01);
+	SendCommand(0x01);  // power setting?
 	SendData(0x37);
 	SendData(0x00);
 	SendData(0x05);
 	SendData(0x05);
 	SendCommand(0x03);
 	SendData(0x00);
-	SendCommand(0x06);
+	SendCommand(CMD_BOOSTER_SOFT_START);
 	SendData(0xC7);
 	SendData(0xC7);
 	SendData(0x1D);
@@ -75,11 +90,7 @@ int Epd::Init(void) {
 	SendData(0x37);
 	SendCommand(0x60);
 	SendData(0x22);
-	SendCommand(0x61);
-	SendData(0x02);
-	SendData(0x80);
-	SendData(0x01);
-	SendData(0x90);
+    SetResolution();
 	SendCommand(0xE3);
 	SendData(0xAA);
 	return 0;
@@ -131,22 +142,18 @@ parameter:
 ******************************************************************************/
 void Epd::EPD_4IN01F_Display(const UBYTE *image) {
     unsigned long i,j;
-    SendCommand(0x61);//Set Resolution setting
-    SendData(0x02);
-    SendData(0x80);
-    SendData(0x01);
-    SendData(0x90);
+    SetResolution();
     SendCommand(0x10);
     for(i=0; i<height; i++) {
         for(j=0; j<width/2; j++) {
 			SendData(image[j+((width/2)*i)]);
 		}
     }
-    SendCommand(0x04);//0x04
+    SendCommand(CMD_POWER_ON);
     EPD_4IN01F_BusyHigh();
     SendCommand(0x12);//0x12
     EPD_4IN01F_BusyHigh();
-    SendCommand(0x02);  //0x02
+    SendCommand(CMD_POWER_OFF);
     EPD_4IN01F_BusyLow();
 	DelayMs(200);
 }
@@ -155,15 +162,12 @@ void Epd::EPD_4IN01F_Display(const UBYTE *image) {
 function :  Sends the part image buffer in RAM to e-Paper and displays
 parameter:
 ******************************************************************************/
+//FIXME This is a full refresh with partial data. Can we have an actual, partial refresh?
 void Epd::EPD_4IN01F_Display_part(const UBYTE *image, UWORD xstart, UWORD ystart, 
                                         UWORD image_width, UWORD image_heigh)
 {
     unsigned long i,j;
-    SendCommand(0x61);//Set Resolution setting
-    SendData(0x02);
-    SendData(0x80);
-    SendData(0x01);
-    SendData(0x90);
+    SetResolution();
     SendCommand(0x10);
     for(i=0; i<height; i++) {
         for(j=0; j< width/2; j++) {
@@ -175,11 +179,11 @@ void Epd::EPD_4IN01F_Display_part(const UBYTE *image, UWORD xstart, UWORD ystart
 			}
 		}
     }
-    SendCommand(0x04);//0x04
+    SendCommand(CMD_POWER_ON);
     EPD_4IN01F_BusyHigh();
     SendCommand(0x12);//0x12
     EPD_4IN01F_BusyHigh();
-    SendCommand(0x02);  //0x02
+    SendCommand(CMD_POWER_OFF);
     EPD_4IN01F_BusyLow();
 	DelayMs(200);
 }
@@ -189,22 +193,18 @@ function :
       Clear screen
 ******************************************************************************/
 void Epd::Clear(UBYTE color) {
-    SendCommand(0x61);//Set Resolution setting
-    SendData(0x02);
-    SendData(0x80);
-    SendData(0x01);
-    SendData(0x90);
+    SetResolution();
     SendCommand(0x10);
     for(int i=0; i<width/2; i++) {
         for(int j=0; j<height; j++) {
 			SendData((color<<4)|color);
 		}
     }
-    SendCommand(0x04);//0x04
+    SendCommand(CMD_POWER_ON);
     EPD_4IN01F_BusyHigh();
     SendCommand(0x12);//0x12
     EPD_4IN01F_BusyHigh();
-    SendCommand(0x02);  //0x02
+    SendCommand(CMD_POWER_OFF);
     EPD_4IN01F_BusyLow();
     DelayMs(500);
 }
@@ -218,7 +218,7 @@ void Epd::Clear(UBYTE color) {
  */
 void Epd::Sleep(void) {
     DelayMs(100);
-    SendCommand(0x07);
+    SendCommand(CMD_DEEP_SLEEP);
     SendData(0xA5);
     DelayMs(100);
 	DigitalWrite(RST_PIN, 0); // Reset

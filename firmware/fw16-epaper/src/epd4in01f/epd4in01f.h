@@ -67,6 +67,7 @@ public:
                                  UWORD image_width, UWORD image_heigh);
     void SendCommand(unsigned char command);
     void SendData(unsigned char data);
+    void SetResolution(uint16_t width = EPD_WIDTH, uint16_t height = EPD_HEIGHT);
     void Sleep(void);
     void Clear(UBYTE color);
 
