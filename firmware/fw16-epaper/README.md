@@ -1,0 +1,22 @@
+Pins of RP2040-Tiny:
+- left:
+  - 29: SPI1 CSn
+  - 28: (SPI1 RX), DC
+  - 27: SPI1 TX
+  - 26: SPI1 SCK
+  - 15: RST
+  - 14: BUSY
+- bottom:
+  - 13
+  - 12
+  - 11
+  - 10
+- right:
+  - 8
+  - 7
+  - 6
+  - 5
+  - 4
+  - 3
+  - 2
+  - 1
