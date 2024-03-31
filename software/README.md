@@ -8,3 +8,5 @@ Steps:
    (See table in section 7 in [here](https://files.waveshare.com/upload/f/f0/4.01inch-ePaper-F-Reference-Design.pdf))
 4. Convert image to mode "indexed" with that palette and Floyd-Steinberg dithering.
 5. Save as PNG.
+
+Steps 2-5 will be done by the Python script.
