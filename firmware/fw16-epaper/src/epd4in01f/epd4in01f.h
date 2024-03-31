@@ -67,6 +67,8 @@ public:
                                  UWORD image_width, UWORD image_heigh);
     void EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystart, 
                                  UWORD image_width, UWORD image_heigh);
+    template<typename F>
+    void EPD_4IN01F_DisplayF(const F& func);
     void SendCommand(unsigned char command);
     void SendData(unsigned char data);
     void SendData16(uint16_t data);
@@ -82,6 +84,31 @@ private:
     unsigned long width;
     unsigned long height;
 };
+
+enum EPD_Command {
+    CMD_POWER_OFF = 0x02,
+    CMD_POWER_ON  = 0x04,
+    CMD_BOOSTER_SOFT_START = 0x06,
+    CMD_DEEP_SLEEP = 0x07,
+template<typename F>
+void Epd::EPD_4IN01F_DisplayF(const F& func) {
+    unsigned long i,j;
+    SetResolution();
+    SendCommand(0x10);
+    for(i=0; i<height; i++) {
+        for(j=0; j<width; j+=2) {
+            //FIXME which is the upper one?
+			SendData(((func(j, i) & 0xf) << 4) | (func(j+1, i) & 0xf));
+		}
+    }
+    SendCommand(CMD_POWER_ON);
+    EPD_4IN01F_BusyHigh();
+    SendCommand(0x12);  // display refresh?
+    EPD_4IN01F_BusyHigh();
+    SendCommand(CMD_POWER_OFF);
+    EPD_4IN01F_BusyLow();
+    DelayMs(200);
+}
 
 #endif /* EPD5IN83B_HD_H */
 

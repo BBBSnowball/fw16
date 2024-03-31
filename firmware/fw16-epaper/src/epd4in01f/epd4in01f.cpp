@@ -45,13 +45,6 @@ Epd::Epd() {
     height = EPD_HEIGHT;
 };
 
-enum EPD_Command {
-    CMD_POWER_OFF = 0x02,
-    CMD_POWER_ON  = 0x04,
-    CMD_BOOSTER_SOFT_START = 0x06,
-    CMD_DEEP_SLEEP = 0x07,
-};
-
 void Epd::SetResolution(uint16_t width, uint16_t height) {
 	SendCommand(0x61);
 	SendData16(width);
