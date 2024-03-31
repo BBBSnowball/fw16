@@ -32,6 +32,7 @@
 #ifndef __EPD_4IN01F_H__
 #define __EPD_4IN01F_H__
 
+#include <stdint.h>
 #include "epdif.h"
 
 // Display resolution
@@ -45,14 +46,18 @@
 /**********************************
 Color Index
 **********************************/
-#define EPD_4IN01F_BLACK   0x0	/// 000
-#define EPD_4IN01F_WHITE   0x1	///	001
-#define EPD_4IN01F_GREEN   0x2	///	010
-#define EPD_4IN01F_BLUE    0x3	///	011
-#define EPD_4IN01F_RED     0x4	///	100
-#define EPD_4IN01F_YELLOW  0x5	///	101
-#define EPD_4IN01F_ORANGE  0x6	///	110
-#define EPD_4IN01F_CLEAN   0x7	///	111   unavailable  Afterimage
+enum EpdColor : UBYTE {
+    EPD_4IN01F_BLACK   = 0x0,	/// 000
+    EPD_4IN01F_WHITE   = 0x1,	///	001
+    EPD_4IN01F_GREEN   = 0x2,	///	010
+    EPD_4IN01F_BLUE    = 0x3,	///	011
+    EPD_4IN01F_RED     = 0x4,	///	100
+    EPD_4IN01F_YELLOW  = 0x5,	///	101
+    EPD_4IN01F_ORANGE  = 0x6,	///	110
+    EPD_4IN01F_CLEAN   = 0x7,	///	111   unavailable  Afterimage
+};
+
+class EpdUpdate;
 
 class Epd : EpdIf {
 public:
@@ -64,9 +69,7 @@ public:
     void Reset(void);
     void EPD_4IN01F_Display(const UBYTE *image);
     void EPD_4IN01F_Display_part(const UBYTE *image, UWORD xstart, UWORD ystart, 
-                                 UWORD image_width, UWORD image_heigh);
-    void EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystart, 
-                                 UWORD image_width, UWORD image_heigh);
+                                 UWORD image_width, UWORD image_height);
     template<typename F>
     void EPD_4IN01F_DisplayF(const F& func);
     void SendCommand(unsigned char command);
@@ -76,6 +79,11 @@ public:
     void Sleep(void);
     void Clear(UBYTE color);
 
+    //NOTE only write to pixels that have been cleared; if in doubt, call Clear(EPD_4IN01F_CLEAN)
+    EpdUpdate start_full_update();
+    EpdUpdate start_partial_update(uint16_t xstart, uint16_t ystart,
+                                 uint16_t image_width, uint16_t image_heigh);
+
 private:
     unsigned int reset_pin;
     unsigned int dc_pin;
@@ -83,6 +91,29 @@ private:
     unsigned int busy_pin;
     unsigned long width;
     unsigned long height;
+};
+
+class EpdUpdate {
+    friend class Epd;
+
+    Epd& epd;
+    uint16_t startx, width, starty, height;
+    int32_t remaining;
+    EpdUpdate(Epd& epd, uint16_t startx, uint16_t starty, uint16_t width, uint16_t height);
+    EpdUpdate(const EpdUpdate&) = delete;
+public:
+    uint16_t get_startx() { return startx; }
+    uint16_t get_width()  { return width; }
+    uint16_t get_starty() { return starty; }
+    uint16_t get_height() { return height; }
+    uint32_t get_remaining() { return remaining; }
+
+    void put2(uint8_t two_pixels);
+    template<typename F>
+    void put_all(const F& func);
+    template<typename F>
+    void put2_all(const F& func);
+    void finish();
 };
 
 enum EPD_Command {
@@ -97,22 +128,29 @@ enum EPD_Command {
 };
 
 template<typename F>
-void Epd::EPD_4IN01F_DisplayF(const F& func) {
-    unsigned long i,j;
-    SetResolution();
-    SendCommand(0x10);
-    for(i=0; i<height; i++) {
-        for(j=0; j<width; j+=2) {
+void EpdUpdate::put_all(const F& func) {
+    for(uint16_t y=starty; y<starty+height; y++) {
+        for(uint16_t x=startx; x<startx+width; x+=2) {
             //FIXME which is the upper one?
-			SendData(((func(j, i) & 0xf) << 4) | (func(j+1, i) & 0xf));
-		}
+            put2(((func(x, y) & 0xf) << 4) | (func(x+1, y) & 0xf));
+        }
     }
-    SendCommand(CMD_POWER_ON);
-    EPD_4IN01F_BusyHigh();
-    SendCommand(0x12);  // display refresh?
-    EPD_4IN01F_BusyHigh();
-    SendCommand(CMD_POWER_OFF);
-    EPD_4IN01F_BusyLow();
+}
+
+template<typename F>
+void EpdUpdate::put2_all(const F& func) {
+    for(uint16_t y=starty; y<starty+height; y++) {
+        for(uint16_t x=startx; x<startx+width; x+=2) {
+            put2(func(x, y));
+        }
+    }
+}
+
+template<typename F>
+void Epd::EPD_4IN01F_DisplayF(const F& func) {
+    auto update = start_full_update();
+    update.put_all(func);
+    update.finish();
     DelayMs(200);
 }
 

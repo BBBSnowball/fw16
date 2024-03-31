@@ -137,51 +137,11 @@ function :  Sends the image buffer in RAM to e-Paper and displays
 parameter:
 ******************************************************************************/
 void Epd::EPD_4IN01F_Display(const UBYTE *image) {
-    unsigned long i,j;
-    SetResolution();
-    SendCommand(0x10);
-    for(i=0; i<height; i++) {
-        for(j=0; j<width/2; j++) {
-			SendData(image[j+((width/2)*i)]);
-		}
-    }
-    SendCommand(CMD_POWER_ON);
-    EPD_4IN01F_BusyHigh();
-    SendCommand(0x12);  // display refresh?
-    EPD_4IN01F_BusyHigh();
-    SendCommand(CMD_POWER_OFF);
-    EPD_4IN01F_BusyLow();
-	DelayMs(200);
-}
-
-/******************************************************************************
-function :  Sends the part image buffer in RAM to e-Paper and displays
-parameter:
-******************************************************************************/
-//FIXME This is a full refresh with partial data. Can we have an actual, partial refresh?
-void Epd::EPD_4IN01F_Display_part(const UBYTE *image, UWORD xstart, UWORD ystart, 
-                                        UWORD image_width, UWORD image_heigh)
-{
-    unsigned long i,j;
-    SetResolution();
-    //FIXME command 0x10 would be for the old data for "4in2" epaper. Should we use 0x13?
-    SendCommand(0x10);
-    for(i=0; i<height; i++) {
-        for(j=0; j< width/2; j++) {
-            if(i<image_heigh+ystart && i>=ystart && j<(image_width+xstart)/2 && j>=xstart/2) {
-              SendData(pgm_read_byte(&image[(j-xstart/2) + (image_width/2*(i-ystart))]));
-            }
-			else {
-				SendData(0x11);
-			}
-		}
-    }
-    SendCommand(CMD_POWER_ON);
-    EPD_4IN01F_BusyHigh();
-    SendCommand(0x12);  // display refresh?
-    EPD_4IN01F_BusyHigh();
-    SendCommand(CMD_POWER_OFF);
-    EPD_4IN01F_BusyLow();
+    auto update = start_full_update();
+    update.put2_all([=](uint16_t x, uint16_t y) {
+			return image[x/2+((width/2)*y)];
+    });
+    update.finish();
 	DelayMs(200);
 }
 
@@ -190,20 +150,12 @@ function :
       Clear screen
 ******************************************************************************/
 void Epd::Clear(UBYTE color) {
-    SetResolution();
-    SendCommand(0x10);
-    for(int i=0; i<width/2; i++) {
-        for(int j=0; j<height; j++) {
-			SendData((color<<4)|color);
-		}
-    }
-    SendCommand(CMD_POWER_ON);
-    EPD_4IN01F_BusyHigh();
-    SendCommand(0x12);  // display refresh?
-    EPD_4IN01F_BusyHigh();
-    SendCommand(CMD_POWER_OFF);
-    EPD_4IN01F_BusyLow();
-    DelayMs(500);
+    auto update = start_full_update();
+    update.put2_all([=](uint16_t x, uint16_t y) {
+        return EPD_4IN01F_CLEAN | (EPD_4IN01F_CLEAN << 4);
+    });
+    update.finish();
+	DelayMs(500);
 }
 
 /**
@@ -221,79 +173,26 @@ void Epd::Sleep(void) {
 	DigitalWrite(RST_PIN, 0); // Reset
 }
 
-// try to do partial refresh like one of the others:
-// https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2.c
-// -> doesn't work
-//
-// Next attempt: Use this: https://www.waveshare.com/w/upload/b/bf/SPD1656_1.1.pdf
-// (found via https://github.com/adafruit/Adafruit_CircuitPython_SPD1656)
-void Epd::EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystart, 
-                                        UWORD image_width, UWORD image_heigh)
+/******************************************************************************
+function :  Sends the part image buffer in RAM to e-Paper and displays
+parameter:
+******************************************************************************/
+void Epd::EPD_4IN01F_Display_part(const UBYTE *image, UWORD xstart, UWORD ystart, 
+                                        UWORD image_width, UWORD image_height)
 {
-    unsigned long i,j;
-    const int pixels_per_byte = 2;
+    auto update = start_partial_update(xstart, ystart, image_width, image_height);
+    update.put2_all([=](uint16_t x, uint16_t y) {
+        if (x < xstart || x-xstart >= image_width)
+            return (EpdColor)(EPD_4IN01F_WHITE | (EPD_4IN01F_WHITE << 4));
+        else
+            return (EpdColor)image[(x-xstart)/2 + (y-ystart)*image_width/2];
+    });
+    update.finish();
+	DelayMs(200);
+}
 
-    //NOTE We have two pixels per byte but datasheet still says it should be a multiple of 8.
-    int Width = (EPD_WIDTH % 8 == 0)? (EPD_WIDTH / 8 ): (EPD_WIDTH / 8 + 1);
-    int Height = EPD_HEIGHT;
-	
-    int xend = xstart + image_width;
-    int yend = ystart + image_heigh;
-	xstart = (xstart % pixels_per_byte == 0)? (xstart): (xstart/pixels_per_byte*pixels_per_byte+pixels_per_byte);
-	xend = (xend % pixels_per_byte == 0)? (xend): (xend/pixels_per_byte*pixels_per_byte+pixels_per_byte);
-
-    SendCommand(CMD_WHRES);
-    SendData16(xstart);
-    SendData16(xend-1);
-    SendCommand(CMD_WVRES);
-    SendData16(ystart);
-    SendData16(yend-1);
-    SendCommand(CMD_WINM);
-    SendData(1);  // enable window mode
-
-    if (1) {
-        SendCommand(CMD_CCSET);
-        SendData(0x80);  // PartialRAM mode
-
-        // description for CCSET mentions 0xa1, 0xd4, 0xd5, 0xde, and 0xdf; so let's see what they do
-        SendCommand(0xd4);  // set active columns
-        SendData16(xstart);
-        SendData16(xend-1);
-        SendCommand(0xdf);  // set start row
-        SendData16(ystart);
-        //SendData16(yend-1);
-        SendCommand(0xde);  // set start offset
-        SendData16(xstart); // (columns will be shifted/rotated without that)
-        //SendCommand(0xa1);  // no idea; breaks things
-        //SendData16(0);
-
-        //FIXME This won't work so well if xstart and image_width aren't multiples of 8.
-        SendCommand(0x10);
-        for (UWORD j = 0; j < yend - ystart; j++) {
-            for (UWORD i = 0; i < (xend - xstart)/pixels_per_byte; i++) {
-                SendData(pgm_read_byte(&image[i + image_width/pixels_per_byte*j]));
-            }
-        }
-    } else {
-        SendCommand(0x10);
-        for(i=0; i<height; i++) {
-            for(j=0; j< width/2; j++) {
-                if(i<image_heigh+ystart && i>=ystart && j<(image_width+xstart)/2 && j>=xstart/2) {
-                    SendData(pgm_read_byte(&image[(j-xstart/2) + (image_width/2*(i-ystart))]));
-                }
-                else {
-                    SendData(0x11);
-                }
-            }
-        }
-    }
-
-    SendCommand(CMD_POWER_ON);
-    EPD_4IN01F_BusyHigh();
-    SendCommand(0x12);  // display refresh?
-    EPD_4IN01F_BusyHigh();
-    SendCommand(CMD_POWER_OFF);
-    EPD_4IN01F_BusyLow();
+EpdUpdate Epd::start_full_update() {
+    SetResolution();
 
     // disable partial mode
     SendCommand(CMD_WINM);
@@ -301,8 +200,81 @@ void Epd::EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystar
     SendCommand(CMD_CCSET);
     SendData(0x00);
 
-	DelayMs(200);
+    SendCommand(0x10);
+    return EpdUpdate(*this, 0, 0, EPD_WIDTH, EPD_HEIGHT);
 }
 
+EpdUpdate Epd::start_partial_update(uint16_t xstart, uint16_t ystart,
+                                 uint16_t width, uint16_t height) {
+    // widen columns if they aren't already divisible by 8.
+    //NOTE We have two pixels per byte but datasheet still says it should be a multiple of 8.
+    if (xstart % 8) {
+        width += (xstart % 8);
+        xstart -= (xstart % 8);
+    }
+    if (width % 8) {
+        width = width/8*8 + 8;
+    }
+    uint16_t xend = xstart + width;
+
+    SetResolution();
+
+    // Based on this: https://www.waveshare.com/w/upload/b/bf/SPD1656_1.1.pdf
+    // (found via https://github.com/adafruit/Adafruit_CircuitPython_SPD1656)
+    SendCommand(CMD_WHRES);
+    SendData16(xstart);
+    SendData16(xstart + width - 1);
+    SendCommand(CMD_WVRES);
+    SendData16(ystart);
+    SendData16(ystart + height - 1);
+    SendCommand(CMD_WINM);
+    SendData(1);  // enable window mode
+
+    SendCommand(CMD_CCSET);
+    SendData(0x80);  // PartialRAM mode
+
+    // description for CCSET mentions 0xa1, 0xd4, 0xd5, 0xde, and 0xdf; so let's see what they do
+    SendCommand(0xd4);  // set active columns
+    SendData16(xstart);
+    SendData16(xstart + width - 1);
+    SendCommand(0xdf);  // set start row
+    SendData16(ystart);
+    //SendData16(yend-1);
+    SendCommand(0xde);  // set start offset
+    SendData16(xstart); // (columns will be shifted/rotated without that)
+    //SendCommand(0xa1);  // no idea; breaks things
+    //SendData16(0);
+
+    SendCommand(0x10);
+    return EpdUpdate { *this, xstart, ystart, width, height };
+}
+
+EpdUpdate::EpdUpdate(Epd& epd, uint16_t startx, uint16_t starty, uint16_t width, uint16_t height) : epd(epd) {
+    this->startx = startx;
+    this->width = width;
+    this->starty = starty;
+    this->height = height;
+    this->remaining = width * height;
+}
+
+void EpdUpdate::put2(uint8_t two_pixels) {
+    if (!remaining)
+        return;
+    epd.SendData(two_pixels);
+    remaining -= 2;
+}
+
+void EpdUpdate::finish() {
+    if (remaining < 0)
+        return;
+    remaining = -1;
+
+    epd.SendCommand(CMD_POWER_ON);
+    epd.EPD_4IN01F_BusyHigh();
+    epd.SendCommand(0x12);  // display refresh?
+    epd.EPD_4IN01F_BusyHigh();
+    epd.SendCommand(CMD_POWER_OFF);
+    epd.EPD_4IN01F_BusyLow();
+}
 
 /* END OF FILE */
