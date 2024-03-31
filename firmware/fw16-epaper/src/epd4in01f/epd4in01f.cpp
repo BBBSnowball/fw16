@@ -250,11 +250,23 @@ void Epd::EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystar
     SendData16(yend-1);
     SendCommand(CMD_WINM);
     SendData(1);  // enable window mode
-    //FIXME This doesn't work.
-    //SendCommand(CMD_CCSET);
-    //SendData(0x80);  // PartialRAM mode
 
-    if (0) {
+    if (1) {
+        SendCommand(CMD_CCSET);
+        SendData(0x80);  // PartialRAM mode
+
+        // description for CCSET mentions 0xa1, 0xd4, 0xd5, 0xde, and 0xdf; so let's see what they do
+        SendCommand(0xd4);  // set active columns
+        SendData16(xstart);
+        SendData16(xend-1);
+        SendCommand(0xdf);  // set start row
+        SendData16(ystart);
+        //SendData16(yend-1);
+        SendCommand(0xde);  // set start offset
+        SendData16(xstart); // (columns will be shifted/rotated without that)
+        //SendCommand(0xa1);  // no idea; breaks things
+        //SendData16(0);
+
         //FIXME This won't work so well if xstart and image_width aren't multiples of 8.
         SendCommand(0x10);
         for (UWORD j = 0; j < yend - ystart; j++) {
