@@ -71,6 +71,8 @@ void __attribute__((noreturn)) panic(const char *fmt, ...) {
   }
 }
 
+#if 0
+
 void setup() {
   Serial.begin(115200);
   Serial.print("init");
@@ -119,3 +121,287 @@ void loop() {
   FastLED.show();
   delay(500);
 }
+
+#else
+
+#include <bitset>
+
+std::bitset<EPD_WIDTH*EPD_HEIGHT> pixelIsClean;
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("I:init");
+
+  FastLED.addLeds<WS2812, WS2812_PIN>(leds, NUM_LEDS);
+
+  leds[0] = CRGB(0, 0, 3);
+  FastLED.show();
+
+  if (epd.Init() != 0) {
+    Serial.println("E: e-Paper init failed");
+    return;
+  }
+
+  // reference PDF says to clear with 0x77
+  //epd.Clear(EPD_4IN01F_CLEAN);
+
+  pixelIsClean.reset();
+}
+
+EpdColor char_to_color(char c) {
+  switch (c) {
+    case 'k': return EPD_4IN01F_BLACK;
+    case 'K': return EPD_4IN01F_BLACK;
+    case 'w': return EPD_4IN01F_WHITE;
+    case 'W': return EPD_4IN01F_WHITE;
+    case 'g': return EPD_4IN01F_GREEN;
+    case 'G': return EPD_4IN01F_GREEN;
+    case 'b': return EPD_4IN01F_BLUE;
+    case 'B': return EPD_4IN01F_BLUE;
+    case 'r': return EPD_4IN01F_RED;
+    case 'R': return EPD_4IN01F_RED;
+    case 'y': return EPD_4IN01F_YELLOW;
+    case 'Y': return EPD_4IN01F_YELLOW;
+    case 'o': return EPD_4IN01F_ORANGE;
+    case 'O': return EPD_4IN01F_ORANGE;
+    case 'c': return EPD_4IN01F_CLEAN;
+    case 'C': return EPD_4IN01F_CLEAN;
+    case ' ': return EPD_4IN01F_CLEAN;
+    default:  return (EpdColor)8;
+  }
+}
+
+uint16_t win_startx = 0, win_starty = 0, win_endx = EPD_WIDTH, win_endy = EPD_HEIGHT;
+bool win_active = false;
+
+void handle_line(const char* buf, int len) {
+  switch (buf[0]) {
+    case 0:
+      return;
+
+    case 'C': {
+      auto color = EPD_4IN01F_CLEAN;
+      if (buf[1] == 0) {
+      } else if (buf[1] == ':' && buf[3] == 0) {
+        color = char_to_color(buf[2]);
+      } else {
+        Serial.println("E:INVALID");
+        return;
+      }
+
+      epd.Clear(color);
+
+      if (win_active) {
+        for (uint16_t y = win_starty; y < win_endy; y++) {
+          for (uint16_t x = win_startx; x < win_endx; x++) {
+            pixelIsClean.set(x + y*EPD_WIDTH, color == EPD_4IN01F_CLEAN);
+          }
+        }
+      } else if (color == EPD_4IN01F_CLEAN) {
+        pixelIsClean.set();
+      } else {
+        pixelIsClean.reset();
+      }
+      Serial.println("OK");
+    }
+    break;
+
+    case 'W':
+      if (buf[1] == 0) {
+        win_startx = 0;
+        win_starty = 0;
+        win_endx = EPD_WIDTH;
+        win_endy = EPD_HEIGHT;
+        win_active = false;
+      } else if (buf[1] != ':') {
+        Serial.println("E:INVALID");
+        return;
+      } else {
+        bool ok = true;
+        const char* p = buf+2;
+        char* p2 = NULL;
+        if (ok) {
+          long a = strtoul(p, &p2, 10);
+          if (!p2 || a % 8 || a < 0 || a > EPD_WIDTH)
+            ok = false;
+          else
+            win_startx = a;
+        }
+        if (p2 && p2[0] == ',')
+          ++p2;
+        if (ok) {
+          long a = strtoul(p, &p2, 10);
+          if (!p2 || a < 0 || a > EPD_HEIGHT)
+            ok = false;
+          else
+            win_starty = a;
+        }
+        if (p2 && p2[0] == ',')
+          ++p2;
+        if (ok) {
+          long a = strtoul(p, &p2, 10);
+          if (!p2 || a <= 0 || a % 8 || win_startx + a > EPD_WIDTH)
+            ok = false;
+          else
+            win_endx = win_startx + a;
+        }
+        if (p2 && p2[0] == ',')
+          ++p2;
+        if (ok) {
+          long a = strtoul(p, &p2, 10);
+          if (!p2 || a <= 0 || win_starty + a > EPD_HEIGHT)
+            ok = false;
+          else
+            win_endy = win_starty + a;
+        }
+        if (!p2 || *p2)
+          ok = false;
+
+        win_active = ok;
+        if (ok) {
+          Serial.println("OK");
+        } else {
+          win_startx = 0;
+          win_starty = 0;
+          win_endx = EPD_WIDTH;
+          win_endy = EPD_HEIGHT;
+          win_active = false;
+        }
+      }
+      break;
+
+    case 'D': {
+      if (buf[1]) {
+        Serial.println("E:INVALID");
+        return;
+      }
+      auto update = win_active
+        ? epd.start_partial_update(win_startx, win_starty, win_endx-win_startx, win_endy-win_starty)
+        : epd.start_full_update();
+      char prev = 0;
+      UBYTE color = 0;
+      int n = 0;
+      while (1) {
+        while (!Serial.available())
+          ;
+        int c = Serial.read();
+        if (c <= 0 || c == '\r')
+          continue;
+        if (c == '\n' && prev == '\n' || c == 3) {
+          Serial.println("E:ABORT");
+          return;
+        } else if (c == '\n') {
+          n = 0;
+          if (!update.get_remaining()) {
+            update.finish();
+            Serial.println("OK");
+            return;
+          }
+        } else if (c == '?') {
+          Serial.print("I:n=");
+          Serial.print(n);
+          Serial.print(",r=");
+          Serial.println(update.get_remaining());
+          continue;
+        } else if (n == 0) {
+          n++;
+        } else {
+          auto a = char_to_color(prev);
+          auto b = char_to_color(c);
+          if (a > EPD_4IN01F_CLEAN || b > EPD_4IN01F_CLEAN) {
+            Serial.println("E:INVALID");
+            return;
+          }
+          //FIXME which one should be the upper?
+          //FIXME check and update pixelIsClean!
+          update.put2((a << 4) | b);
+          n = 0;
+        }
+        prev = c;
+      }
+    }
+    break;
+
+    case 'P': {
+      int width = 192;
+      int height = 143;
+      bool ok = true;
+      const char* p = buf+2;
+      char* p2 = NULL;
+      long x, y;
+      if (ok) {
+        x = strtoul(p, &p2, 10);
+        if (!p2 || x < 0 || x + width > EPD_WIDTH)
+          ok = false;
+      }
+      if (p2 && p2[0] == ',')
+        ++p2;
+      if (ok) {
+        y = strtoul(p, &p2, 10);
+        if (!p2 || y < 0 || y + height > EPD_HEIGHT)
+          ok = false;
+      }
+      if (!ok) {
+        Serial.println("E:INVALID");
+        return;
+      }
+      epd.EPD_4IN01F_Display_part(gImage_4in01f, x, y, width, height);
+      Serial.println("OK");
+    }
+    break;
+
+    case 'I':
+      if (epd.Init() == 0)
+        Serial.println("OK");
+      else
+        Serial.println("E:FAILED");
+      break;
+
+    case 'h':
+    case 'H':
+    case '?':
+      Serial.println("# End commands with newline. Reply is OK. Send two newlines or ctrl-c to abort most commands.");
+      Serial.println("# C                  clear");
+      Serial.println("# C:<c>              fill with color");
+      Serial.println("# I                  re-initialize");
+      Serial.println("# W                  disable window, i.e. update everything");
+      Serial.println("# W:<x>,<y>,<w>,<h>  set window");
+      Serial.println("# D\\n<c>*\\n          draw pixels");
+      Serial.println("#     <c> is: blacK, White, Green, Blue, Red, Yellow, Orange, Clean");
+      Serial.println("#     (capital letter is code for that color)");
+      break;
+
+    default:
+      Serial.println("E:INVALID");
+      break;
+  }
+}
+
+void loop() {
+  int numReceived = 0;
+  while (1) {
+    if (Serial.available()) {
+      int c = Serial.read();
+      if (c == '\n') {
+        if (numReceived < sizeof(buf)-1) {
+          buf[numReceived] = 0;
+          handle_line(buf, numReceived);
+        } else {
+          Serial.println("E:OVFL2");
+        }
+        numReceived = 0;
+      } else if (c == '\r' || c < 32 || c >= 128) {
+        // ignore
+      } else {
+        numReceived++;
+        if (numReceived == sizeof(buf)-1) {
+          Serial.println("E:OVFL1");
+        } else if (numReceived < sizeof(buf)-1) {
+          buf[numReceived-1] = c;
+        }
+      }
+    }
+  }
+}
+
+#endif

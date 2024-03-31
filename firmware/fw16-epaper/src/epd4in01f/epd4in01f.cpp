@@ -208,6 +208,7 @@ EpdUpdate Epd::start_partial_update(uint16_t xstart, uint16_t ystart,
                                  uint16_t width, uint16_t height) {
     // widen columns if they aren't already divisible by 8.
     //NOTE We have two pixels per byte but datasheet still says it should be a multiple of 8.
+    //FIXME Can we make the window a multiple of 8 but keep the exact bounds when writing data?
     if (xstart % 8) {
         width += (xstart % 8);
         xstart -= (xstart % 8);
