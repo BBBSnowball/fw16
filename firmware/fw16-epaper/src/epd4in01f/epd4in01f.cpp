@@ -223,45 +223,58 @@ void Epd::Sleep(void) {
 
 // try to do partial refresh like one of the others:
 // https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2.c
+// -> doesn't work
+//
+// Next attempt: Use this: https://www.waveshare.com/w/upload/b/bf/SPD1656_1.1.pdf
+// (found via https://github.com/adafruit/Adafruit_CircuitPython_SPD1656)
 void Epd::EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystart, 
                                         UWORD image_width, UWORD image_heigh)
 {
     unsigned long i,j;
     const int pixels_per_byte = 2;
 
-    int Width = (EPD_WIDTH % pixels_per_byte == 0)? (EPD_WIDTH / pixels_per_byte ): (EPD_WIDTH / pixels_per_byte + 1);
+    //NOTE We have two pixels per byte but datasheet still says it should be a multiple of 8.
+    int Width = (EPD_WIDTH % 8 == 0)? (EPD_WIDTH / 8 ): (EPD_WIDTH / 8 + 1);
     int Height = EPD_HEIGHT;
 	
     int xend = xstart + image_width;
     int yend = ystart + image_heigh;
 	xstart = (xstart % pixels_per_byte == 0)? (xstart): (xstart/pixels_per_byte*pixels_per_byte+pixels_per_byte);
 	xend = (xend % pixels_per_byte == 0)? (xend): (xend/pixels_per_byte*pixels_per_byte+pixels_per_byte);
-	
 
-	SendCommand(0x91);		//This command makes the display enter partial mode
-	SendCommand(0x90);		//resolution setting
+    SendCommand(CMD_WHRES);
     SendData16(xstart);
     SendData16(xend-1);
+    SendCommand(CMD_WVRES);
     SendData16(ystart);
     SendData16(yend-1);
-	SendData (0x28);	
+    SendCommand(CMD_WINM);
+    SendData(1);  // enable window mode
+    //FIXME This doesn't work.
+    //SendCommand(CMD_CCSET);
+    //SendData(0x80);  // PartialRAM mode
 
-#if 1
-	SendCommand(0x10);	       //writes Old data to SRAM for programming
-    for (UWORD j = 0; j < yend - ystart; j++) {
-        for (UWORD i = 0; i < (xend - xstart)/pixels_per_byte; i++) {
-            SendData(pgm_read_byte(&image[i + (image_width/pixels_per_byte*(j-ystart))]));
+    if (0) {
+        //FIXME This won't work so well if xstart and image_width aren't multiples of 8.
+        SendCommand(0x10);
+        for (UWORD j = 0; j < yend - ystart; j++) {
+            for (UWORD i = 0; i < (xend - xstart)/pixels_per_byte; i++) {
+                SendData(pgm_read_byte(&image[i + image_width/pixels_per_byte*j]));
+            }
+        }
+    } else {
+        SendCommand(0x10);
+        for(i=0; i<height; i++) {
+            for(j=0; j< width/2; j++) {
+                if(i<image_heigh+ystart && i>=ystart && j<(image_width+xstart)/2 && j>=xstart/2) {
+                    SendData(pgm_read_byte(&image[(j-xstart/2) + (image_width/2*(i-ystart))]));
+                }
+                else {
+                    SendData(0x11);
+                }
+            }
         }
     }
-#endif
-#if 1
-	SendCommand(0x13);				 //writes New data to SRAM.
-    for (UWORD j = 0; j < yend - ystart; j++) {
-        for (UWORD i = 0; i < (xend - xstart)/pixels_per_byte; i++) {
-            SendData(~pgm_read_byte(&image[i + (image_width/pixels_per_byte*(j-ystart))]));
-        }
-    }
-#endif
 
     SendCommand(CMD_POWER_ON);
     EPD_4IN01F_BusyHigh();
@@ -269,6 +282,13 @@ void Epd::EPD_4IN01F_Display_part2(const UBYTE *image, UWORD xstart, UWORD ystar
     EPD_4IN01F_BusyHigh();
     SendCommand(CMD_POWER_OFF);
     EPD_4IN01F_BusyLow();
+
+    // disable partial mode
+    SendCommand(CMD_WINM);
+    SendData(0);
+    SendCommand(CMD_CCSET);
+    SendData(0x00);
+
 	DelayMs(200);
 }
 

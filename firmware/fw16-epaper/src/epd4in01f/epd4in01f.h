@@ -90,6 +90,12 @@ enum EPD_Command {
     CMD_POWER_ON  = 0x04,
     CMD_BOOSTER_SOFT_START = 0x06,
     CMD_DEEP_SLEEP = 0x07,
+    CMD_WINM = 0x14,
+    CMD_WHRES = 0x15,
+    CMD_WVRES = 0x16,
+    CMD_CCSET = 0xe0,
+};
+
 template<typename F>
 void Epd::EPD_4IN01F_DisplayF(const F& func) {
     unsigned long i,j;

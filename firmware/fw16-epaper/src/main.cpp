@@ -99,8 +99,8 @@ void setup() {
   Serial.print("draw image\r\n ");
   if (0) {
     epd.EPD_4IN01F_Display_part(gImage_4in01f, 204, 153, 192, 143);
-  } else if (0) {
-    // doesn't work, window is ignored and it does a full refresh with wrong data
+  } else if (1) {
+    epd.EPD_4IN01F_Display_part2(gImage_4in01f, 208, 0, 192, 143);
     epd.EPD_4IN01F_Display_part2(gImage_4in01f, 204, 152, 192, 142);
   } else {
     epd.EPD_4IN01F_DisplayF([](int x, int y) {
