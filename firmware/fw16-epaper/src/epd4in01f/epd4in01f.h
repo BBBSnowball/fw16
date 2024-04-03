@@ -77,7 +77,7 @@ public:
     void SendData16(uint16_t data);
     void SetResolution(uint16_t width = EPD_WIDTH, uint16_t height = EPD_HEIGHT);
     void Sleep(void);
-    void Clear(UBYTE color);
+    void Clear(UBYTE color = EPD_4IN01F_CLEAN);
 
     //NOTE only write to pixels that have been cleared; if in doubt, call Clear(EPD_4IN01F_CLEAN)
     EpdUpdate start_full_update();

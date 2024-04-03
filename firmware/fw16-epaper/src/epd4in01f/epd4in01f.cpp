@@ -152,7 +152,7 @@ function :
 void Epd::Clear(UBYTE color) {
     auto update = start_full_update();
     update.put2_all([=](uint16_t x, uint16_t y) {
-        return EPD_4IN01F_CLEAN | (EPD_4IN01F_CLEAN << 4);
+        return color | (color << 4);
     });
     update.finish();
 	DelayMs(500);
