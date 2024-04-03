@@ -1,5 +1,10 @@
+import sys
 import serial
 from PIL import Image, ImagePalette
+
+picture_path = "nature_picture2.png"
+if len(sys.argv) == 2:
+    picture_path = sys.argv[1]
 
 def color_to_char(c):
     if c < 0 or c >= 7:
@@ -13,7 +18,7 @@ palette_image.putpalette(b'\x00\x00\x00\xff\xff\xff\x00\xff\x00\x00\x00\xff\xff\
 tty = serial.Serial("/dev/ttyACM0")
 #tty.write(b"\x03I\nC\nD\n")
 tty.write(b"\x03I\nD\n")
-with Image.open("nature_picture2.png") as im:
+with Image.open(picture_path) as im:
     if im.size[0] > 640 or im.size[1] > 400:
         im = im.resize((640, 400))
 
