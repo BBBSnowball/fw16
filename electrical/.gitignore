@@ -1,0 +1,4 @@
+*-cache
+~*.lck
+*.bak
+*-backups/
