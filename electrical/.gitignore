@@ -2,3 +2,5 @@
 ~*.lck
 *.bak
 *-backups/
+gerber/
+gerbers/
