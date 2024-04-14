@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "fw16_epaper")(type "KiCad")(uri "/home/user/projects/fw16-epaper/electrical/lib/fw16_epaper.pretty")(options "")(descr ""))
+)
