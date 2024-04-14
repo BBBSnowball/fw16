@@ -4,6 +4,9 @@ a RP2040-tiny board in the lower half (i.e. left
 or right of the touchpad module).
 
 
+![Rendered PCB, viewed from bottom side](./PCB-bottom.png)
+
+
 Parameters (JLCPCB)
 ----------
 
