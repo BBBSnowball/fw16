@@ -441,13 +441,44 @@ void setup() {
     Serial.print("done\r\n ");
 }
 
+const int TOUCH_Y0 = 26;
+const int TOUCH_X0 = 27;
+const int TOUCH_X1 = 28;
+const int TOUCH_Y1 = 29;
+
 void loop() {
-  leds[0] = CRGB(3, 3, 0);
-  FastLED.show();
-  delay(500);
-  leds[0] = CRGB(0, 3, 0);
-  FastLED.show();
-  delay(500);
+  unsigned long prevBlink = 0;
+  if (millis()-prevBlink > 500) {
+    prevBlink = millis();
+    leds[0] = leds[0].red ? CRGB(0, 3, 0) : CRGB(3, 3, 0);
+    FastLED.show();
+  }
+
+  pinMode(TOUCH_Y0, INPUT);
+  pinMode(TOUCH_Y1, INPUT);
+  pinMode(TOUCH_X0, OUTPUT);
+  digitalWrite(TOUCH_X0, 1);
+  pinMode(TOUCH_X1, OUTPUT);
+  digitalWrite(TOUCH_X1, 0);
+  int a = analogRead(TOUCH_Y0);
+  int b = analogRead(TOUCH_Y1);
+
+  pinMode(TOUCH_X0, INPUT);
+  pinMode(TOUCH_X1, INPUT);
+  pinMode(TOUCH_Y0, OUTPUT);
+  digitalWrite(TOUCH_Y0, 1);
+  pinMode(TOUCH_Y1, OUTPUT);
+  digitalWrite(TOUCH_Y1, 0);
+  int c = analogRead(TOUCH_X0);
+  int d = analogRead(TOUCH_X1);
+  Serial.print("Touch: ");
+  Serial.print(a);
+  Serial.print(", ");
+  Serial.print(b);
+  Serial.print(", ");
+  Serial.print(c);
+  Serial.print(", ");
+  Serial.println(d);
 }
 
 void testEpaper() {
