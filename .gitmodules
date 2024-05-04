@@ -4,3 +4,6 @@
 [submodule "firmware/fw16-epaper-2/lib/SoftSPI"]
 	path = firmware/fw16-epaper-2/lib/SoftSPI
 	url = https://github.com/MajenkoLibraries/SoftSPI
+[submodule "firmware/fw16-epaper-2/lib/SparkFun_ATECCX08a_Arduino_Library"]
+	path = firmware/fw16-epaper-2/lib/SparkFun_ATECCX08a_Arduino_Library
+	url = https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library

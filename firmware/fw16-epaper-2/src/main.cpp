@@ -23,8 +23,8 @@
 
 #include <SPI.h>
 #include <FastLED.h>
-//#include "epd4in01f/imagedata.h"
-//#include "epd4in01f/epd4in01f.h"
+#include <Wire.h>
+#include <SparkFun_ATECCX08a_Arduino_Library.h>
 #include "pico/printf.h"
 
 #define NUM_LEDS 1
@@ -420,6 +420,11 @@ Paint paint(image, 0, 0);    // width should be the multiple of 8
 UDOUBLE time_start_ms;
 UDOUBLE time_now_s;
 
+ATECCX08A atecc;
+
+void testEpaper();
+void testSecurityChip();
+
 void setup() {
     // put your setup code here, to run once:
     Serial.begin(115200);
@@ -429,53 +434,9 @@ void setup() {
     leds[0] = CRGB(0, 0, 3);
     FastLED.show();
 
-    Epd epd;
-    if (epd.Init() != 0) {
-        Serial.print("e-Paper init failed");
-        return;
-    }
-    Serial.print("3.7inch e-paper demo\r\n ");
-    Serial.print("e-Paper Clear\r\n ");
-    epd.Clear(1);  
-    Serial.print("draw image\r\n ");
-    epd.DisplayFrame(IMAGE_DATA, true);   // Set base image
-    delay(3000);
-    
-    paint.SetWidth(40);
-    paint.SetHeight(120);
-    paint.SetRotate(ROTATE_270);
-    paint.Clear(UNCOLORED);
+    testEpaper();
 
-    leds[0] = CRGB(0, 3, 0);
-    FastLED.show();
-
-    UBYTE i;
-    time_start_ms = millis();
-    for(i=0; i<5; i++) {
-        time_now_s = (millis() - time_start_ms) / 1000;
-        char time_string[] = {'0', '0', ':', '0', '0', '\0'};
-        time_string[0] = time_now_s / 60 / 10 + '0';
-        time_string[1] = time_now_s / 60 % 10 + '0';
-        time_string[3] = time_now_s % 60 / 10 + '0';
-        time_string[4] = time_now_s % 60 % 10 + '0';
-
-        paint.Clear(UNCOLORED);
-        paint.DrawStringAt(20, 10, time_string, &Font16, COLORED);
-        Serial.print("refresh------\r\n ");
-        // epd.DisplayFrame_Partial(paint.GetImage(), 20, 100, 40, 120); // Width must be a multiple of 8
-        /* Writes new data to RAM */
-        epd.DisplayFrame_Part(paint.GetImage(), 40+i*40, 30, 80+i*40, 140, false);   // Xstart must be a multiple of 8
-        /* Displays and toggles the RAM currently in use */
-        epd.TurnOnDisplay();
-        /* Writes the last data to another RAM */
-        epd.DisplayFrame_Part(paint.GetImage(), 40+i*40, 30, 80+i*40, 140, false);   // Xstart must be a multiple of 8
-        delay(500);
-    }
-    
-    Serial.print("clear and sleep......\r\n ");
-    epd.Init();
-    epd.Clear(1);
-    epd.Sleep();
+    testSecurityChip();
 
     Serial.print("done\r\n ");
 }
@@ -487,6 +448,130 @@ void loop() {
   leds[0] = CRGB(0, 3, 0);
   FastLED.show();
   delay(500);
+}
+
+void testEpaper() {
+  Epd epd;
+  if (epd.Init() != 0) {
+      Serial.print("e-Paper init failed");
+      return;
+  }
+  Serial.print("3.7inch e-paper demo\r\n ");
+  Serial.print("e-Paper Clear\r\n ");
+  epd.Clear(1);  
+  Serial.print("draw image\r\n ");
+  epd.DisplayFrame(IMAGE_DATA, true);   // Set base image
+  delay(3000);
+  
+  paint.SetWidth(40);
+  paint.SetHeight(120);
+  paint.SetRotate(ROTATE_270);
+  paint.Clear(UNCOLORED);
+
+  leds[0] = CRGB(0, 3, 0);
+  FastLED.show();
+
+  UBYTE i;
+  time_start_ms = millis();
+  for(i=0; i<5; i++) {
+      time_now_s = (millis() - time_start_ms) / 1000;
+      char time_string[] = {'0', '0', ':', '0', '0', '\0'};
+      time_string[0] = time_now_s / 60 / 10 + '0';
+      time_string[1] = time_now_s / 60 % 10 + '0';
+      time_string[3] = time_now_s % 60 / 10 + '0';
+      time_string[4] = time_now_s % 60 % 10 + '0';
+
+      paint.Clear(UNCOLORED);
+      paint.DrawStringAt(20, 10, time_string, &Font16, COLORED);
+      Serial.print("refresh------\r\n ");
+      // epd.DisplayFrame_Partial(paint.GetImage(), 20, 100, 40, 120); // Width must be a multiple of 8
+      /* Writes new data to RAM */
+      epd.DisplayFrame_Part(paint.GetImage(), 40+i*40, 30, 80+i*40, 140, false);   // Xstart must be a multiple of 8
+      /* Displays and toggles the RAM currently in use */
+      epd.TurnOnDisplay();
+      /* Writes the last data to another RAM */
+      epd.DisplayFrame_Part(paint.GetImage(), 40+i*40, 30, 80+i*40, 140, false);   // Xstart must be a multiple of 8
+      delay(500);
+  }
+  
+  Serial.print("clear and sleep......\r\n ");
+  epd.Init();
+  epd.Clear(1);
+  epd.Sleep();
+}
+
+// copied from https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library/blob/master/examples/Example5_Random/Example5_Random.ino
+void printInfo()
+{
+  // Read all 128 bytes of Configuration Zone
+  // These will be stored in an array within the instance named: atecc.configZone[128]
+  atecc.readConfigZone(false); // Debug argument false (OFF)
+
+  // Print useful information from configuration zone data
+  Serial.println();
+
+  Serial.print("Serial Number: \t");
+  for (int i = 0 ; i < 9 ; i++)
+  {
+    if ((atecc.serialNumber[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(atecc.serialNumber[i], HEX);
+  }
+  Serial.println();
+
+  Serial.print("Rev Number: \t");
+  for (int i = 0 ; i < 4 ; i++)
+  {
+    if ((atecc.revisionNumber[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(atecc.revisionNumber[i], HEX);
+  }
+  Serial.println();
+
+  Serial.print("Config Zone: \t");
+  if (atecc.configLockStatus) Serial.println("Locked");
+  else Serial.println("NOT Locked");
+
+  Serial.print("Data/OTP Zone: \t");
+  if (atecc.dataOTPLockStatus) Serial.println("Locked");
+  else Serial.println("NOT Locked");
+
+  Serial.print("Data Slot 0: \t");
+  if (atecc.slot0LockStatus) Serial.println("Locked");
+  else Serial.println("NOT Locked");
+
+  Serial.println();
+
+  // omitted printing public key, to keep this example simple and focused on just random numbers.
+}
+
+void testSecurityChip() {
+  Wire.setSDA(12);
+  Wire.setSCL(13);
+  Wire.begin();
+
+  // copied from https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library/blob/master/examples/Example5_Random/Example5_Random.ino
+
+  if (atecc.begin() == true)
+  {
+    Serial.println("Successful wakeUp(). I2C connections are good.");
+  }
+  else
+  {
+    Serial.println("Device not found. Check wiring.");
+    return;
+  }
+
+  printInfo(); // see function below for library calls and data handling
+
+  // check for configuration
+  if (!(atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus))
+  {
+    Serial.print("Device not configured. Please use the configuration sketch.");
+    return;
+  }
+
+  long myRandomNumber = atecc.random(100);
+  Serial.print("Random number: ");
+  Serial.println(myRandomNumber);
 }
 
 #endif
