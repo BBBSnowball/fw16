@@ -423,6 +423,12 @@ UDOUBLE time_now_s;
 void setup() {
     // put your setup code here, to run once:
     Serial.begin(115200);
+
+    FastLED.addLeds<WS2812, WS2812_PIN>(leds, NUM_LEDS);
+
+    leds[0] = CRGB(0, 0, 3);
+    FastLED.show();
+
     Epd epd;
     if (epd.Init() != 0) {
         Serial.print("e-Paper init failed");
@@ -439,6 +445,9 @@ void setup() {
     paint.SetHeight(120);
     paint.SetRotate(ROTATE_270);
     paint.Clear(UNCOLORED);
+
+    leds[0] = CRGB(0, 3, 0);
+    FastLED.show();
 
     UBYTE i;
     time_start_ms = millis();
@@ -467,10 +476,17 @@ void setup() {
     epd.Init();
     epd.Clear(1);
     epd.Sleep();
+
+    Serial.print("done\r\n ");
 }
 
 void loop() {
-  
+  leds[0] = CRGB(3, 3, 0);
+  FastLED.show();
+  delay(500);
+  leds[0] = CRGB(0, 3, 0);
+  FastLED.show();
+  delay(500);
 }
 
 #endif

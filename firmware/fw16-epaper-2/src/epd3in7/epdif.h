@@ -31,15 +31,32 @@
 #include <Arduino.h>
 
 // Pin definition
-#define RST_PIN         15
-#define DC_PIN          28
-#define CS_PIN          29
-#define BUSY_PIN        14
-#define PWR_PIN         6
-#define SCK_PIN         26
-#define MOSI_PIN        27
-#define MISO_PIN        24   // not used but must be valid
-#define SPI_INST        SPI1
+#if 0
+    // Pico-ePaper-3.7, jumper wires to RP2040-tiny
+    #define RST_PIN         15
+    #define DC_PIN          28
+    #define CS_PIN          29
+    #define BUSY_PIN        14
+    #define PWR_PIN         6
+    #define SCK_PIN         26
+    #define MOSI_PIN        27
+    #define MISO_PIN        24   // not used but must be valid
+    #define SPI_INST        SPI1
+#elif 1
+    // "adapter2"
+    #define RST_PIN         6
+    #define DC_PIN          7
+    #define CS_PIN          8
+    #define BUSY_PIN        5
+    #define PWR_PIN         -1
+    #define SCK_PIN         9
+    #define MOSI_PIN        10
+    #define MISO_PIN        11   // not used but must be valid
+    #define SPI_INST        SoftSPI
+    #define USE_SOFT_SPI    1
+#else
+#error Unknown board.
+#endif
 
 class EpdIf {
 public:

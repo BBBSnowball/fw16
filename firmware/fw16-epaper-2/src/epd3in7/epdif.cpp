@@ -28,6 +28,11 @@
 #include "epdif.h"
 #include <SPI.h>
 
+#if defined(USE_SOFT_SPI) && USE_SOFT_SPI
+    #include <SoftwareSPI.h>
+    SoftwareSPI SPI_INST(SCK_PIN, MOSI_PIN, MISO_PIN, /* dummy for CS */ MISO_PIN);
+#endif
+
 EpdIf::EpdIf() {
 };
 
@@ -61,6 +66,11 @@ int EpdIf::IfInit(void) {
     pinMode(PWR_PIN, OUTPUT);
     DigitalWrite(PWR_PIN, 1);
 
+#if defined(USE_SOFT_SPI) && USE_SOFT_SPI
+    SPI_INST.begin();
+    //SPI_INST.setBitOrder(MSBFIRST);
+    //SPI_INST.setDataMode(SPI_MODE0);
+#else
     SPI_INST.setRX(MISO_PIN);  // not used
     SPI_INST.setCS(CS_PIN);
     SPI_INST.setSCK(SCK_PIN);
@@ -68,6 +78,7 @@ int EpdIf::IfInit(void) {
 
     SPI_INST.begin();
     SPI_INST.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+#endif
     return 0;
 }
 

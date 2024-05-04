@@ -1,0 +1,6 @@
+[submodule "firmware/fw16-epaper-2/lib/SoftwareSPI"]
+	path = firmware/fw16-epaper-2/lib/SoftwareSPI
+	url = https://github.com/Flickerstrip/SoftwareSPI
+[submodule "firmware/fw16-epaper-2/lib/SoftSPI"]
+	path = firmware/fw16-epaper-2/lib/SoftSPI
+	url = https://github.com/MajenkoLibraries/SoftSPI
