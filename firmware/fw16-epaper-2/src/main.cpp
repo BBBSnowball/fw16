@@ -425,7 +425,7 @@ UDOUBLE time_now_s;
 
 ATECCX08A atecc;
 
-void testEpaper();
+void testEpaper(bool full);
 void testSecurityChip();
 
 void setup() {
@@ -437,7 +437,7 @@ void setup() {
     leds[0] = CRGB(0, 0, 3);
     FastLED.show();
 
-    testEpaper();
+    testEpaper(false);
 
     testSecurityChip();
 
@@ -448,6 +448,8 @@ const int TOUCH_Y0 = 26;
 const int TOUCH_X0 = 27;
 const int TOUCH_X1 = 28;
 const int TOUCH_Y1 = 29;
+
+static bool printTouch = false;
 
 void loop() {
   unsigned long prevBlink = 0;
@@ -474,17 +476,53 @@ void loop() {
   digitalWrite(TOUCH_Y1, 0);
   int c = analogRead(TOUCH_X0);
   int d = analogRead(TOUCH_X1);
-  Serial.print("Touch: ");
-  Serial.print(a);
-  Serial.print(", ");
-  Serial.print(b);
-  Serial.print(", ");
-  Serial.print(c);
-  Serial.print(", ");
-  Serial.println(d);
+  if (printTouch) {
+    Serial.print("Touch: ");
+    Serial.print(a);
+    Serial.print(", ");
+    Serial.print(b);
+    Serial.print(", ");
+    Serial.print(c);
+    Serial.print(", ");
+    Serial.println(d);
+  }
+
+  int ch = Serial.read();
+  switch (ch) {
+    case 'T':
+      printTouch = true;
+      break;
+    case '\r':
+    case '\n':
+      Serial.print((char)c);
+      if (printTouch) {
+        printTouch = false;
+      }
+      break;
+    case 'e':
+      testEpaper(false);
+      break;
+    case 'E':
+      testEpaper(true);
+      break;
+    case 'c':
+      {
+        Epd epd;
+        if (epd.Init() != 0) {
+            Serial.print("e-Paper init failed");
+        } else {
+          epd.Clear(1);
+          epd.Sleep();
+        }
+      }
+      break;
+    case 'S':
+      testSecurityChip();
+      break;
+  }
 }
 
-void testEpaper() {
+void testEpaper(bool full) {
   Epd epd;
   if (epd.Init() != 0) {
       Serial.print("e-Paper init failed");
@@ -495,6 +533,12 @@ void testEpaper() {
   epd.Clear(1);  
   Serial.print("draw image\r\n ");
   epd.DisplayFrame(IMAGE_DATA, true);   // Set base image
+
+  if (!full) {
+    epd.Sleep();
+    return;
+  }
+
   delay(3000);
   
   paint.SetWidth(40);
