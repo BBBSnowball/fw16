@@ -25,13 +25,15 @@
 #include <FastLED.h>
 #include <Wire.h>
 #include <SparkFun_ATECCX08a_Arduino_Library.h>
-#include "pico/printf.h"
 
 #define NUM_LEDS 1
 #define WS2812_PIN 16
 
 CRGB leds[NUM_LEDS];
 //Epd epd;
+
+#if 1
+#include "pico/printf.h"
 
 // Replace panic handler, so we can see panic on USB serial:
 //   cd ~/.platformio/packages/framework-arduinopico/lib
@@ -70,6 +72,7 @@ void __attribute__((noreturn)) panic(const char *fmt, ...) {
     delay(200);
   }
 }
+#endif
 
 #if 0
 
