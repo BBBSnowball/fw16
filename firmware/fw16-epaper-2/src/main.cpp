@@ -25,12 +25,21 @@
 #include <FastLED.h>
 #include <Wire.h>
 #include <SparkFun_ATECCX08a_Arduino_Library.h>
+#include <bitset>
+
+#include <SPI.h>
+#include "epd3in7/epd3in7.h"
+#include "epd3in7/imagedata.h"
+#include "epd3in7/epdpaint.h"
+
+std::bitset<EPD_WIDTH*EPD_HEIGHT> pixelIsClean;
+Epd epd;
+
 
 #define NUM_LEDS 1
 #define WS2812_PIN 16
 
 CRGB leds[NUM_LEDS];
-//Epd epd;
 
 #if 1
 #include "pico/printf.h"
@@ -74,105 +83,62 @@ void __attribute__((noreturn)) panic(const char *fmt, ...) {
 }
 #endif
 
-#if 0
-
-void setup() {
-  Serial.begin(115200);
-  Serial.print("init");
-
-  FastLED.addLeds<WS2812, WS2812_PIN>(leds, NUM_LEDS);
-
-  leds[0] = CRGB(10, 0, 0);
-  FastLED.show();
-
-  while (!Serial)
-    ;
-
-  leds[0] = CRGB(10, 5, 0);
-  FastLED.show();
-
-  if (epd.Init() != 0) {
-    Serial.print("e-Paper init failed");
-    return;
-  }
-  
-  Serial.print("e-Paper Clear\r\n ");
-  //epd.Clear(EPD_4IN01F_WHITE);
-  // reference PDF says to clear with 0x77
-  epd.Clear(EPD_4IN01F_CLEAN);
-  
-  Serial.print("draw image\r\n ");
-  if (0) {
-    epd.EPD_4IN01F_Display_part(gImage_4in01f, 204, 153, 192, 143);
-  } else if (1) {
-    //epd.EPD_4IN01F_Display_part(gImage_4in01f, 208, 0, 192, 143);
-    //epd.EPD_4IN01F_Display_part(gImage_4in01f, 204, 152, 192, 142);
-    epd.EPD_4IN01F_Display_part(gImage_4in01f, 24, 20, 192, 142);
-    epd.EPD_4IN01F_Display_part(gImage_4in01f, 48, 220, 192, 142);
-  } else {
-    epd.EPD_4IN01F_DisplayF([](int x, int y) {
-      return (x/4 + y/16) % 8;
-    });
-  }
-}
-
-void loop() {
-  leds[0] = CRGB(0, 10, 0);
-  FastLED.show();
-  delay(500);
-  leds[0] = CRGB::Black;
-  FastLED.show();
-  delay(500);
-}
-
-#elif 0
-
-#include <bitset>
-
-std::bitset<EPD_WIDTH*EPD_HEIGHT> pixelIsClean;
-
-void setup() {
-  Serial.begin(115200);
-  Serial.println("I:init");
-
-  FastLED.addLeds<WS2812, WS2812_PIN>(leds, NUM_LEDS);
-
-  leds[0] = CRGB(0, 0, 3);
-  FastLED.show();
-
-  if (epd.Init() != 0) {
-    Serial.println("E: e-Paper init failed");
-    return;
-  }
-
-  // reference PDF says to clear with 0x77
-  //epd.Clear(EPD_4IN01F_CLEAN);
-
-  pixelIsClean.reset();
-}
+typedef uint8_t EpdColor;
 
 EpdColor char_to_color(char c) {
   switch (c) {
-    case 'k': return EPD_4IN01F_BLACK;
-    case 'K': return EPD_4IN01F_BLACK;
-    case 'w': return EPD_4IN01F_WHITE;
-    case 'W': return EPD_4IN01F_WHITE;
-    case 'g': return EPD_4IN01F_GREEN;
-    case 'G': return EPD_4IN01F_GREEN;
-    case 'b': return EPD_4IN01F_BLUE;
-    case 'B': return EPD_4IN01F_BLUE;
-    case 'r': return EPD_4IN01F_RED;
-    case 'R': return EPD_4IN01F_RED;
-    case 'y': return EPD_4IN01F_YELLOW;
-    case 'Y': return EPD_4IN01F_YELLOW;
-    case 'o': return EPD_4IN01F_ORANGE;
-    case 'O': return EPD_4IN01F_ORANGE;
-    case 'c': return EPD_4IN01F_CLEAN;
-    case 'C': return EPD_4IN01F_CLEAN;
-    case ' ': return EPD_4IN01F_CLEAN;
-    default:  return (EpdColor)8;
+    case ' ': return 0;
+    case '-': return 1;
+    case '+': return 2;
+    case '#': return 3;
+    default:  return 0;
   }
 }
+
+struct EpdUpdate {
+  uint8_t data[EPD_WIDTH*EPD_HEIGHT/8];
+  uint32_t cnt;
+
+  void begin() {
+    cnt = 0;
+  }
+
+  int get_remaining() {
+    return EPD_WIDTH*EPD_HEIGHT - cnt;
+  }
+
+  void put(EpdColor a) {
+    if (cnt >= EPD_WIDTH*EPD_HEIGHT)
+      return;
+    int i = cnt/8;
+    int shift = 7 - cnt%8;
+    data[i] = (data[i] & ~(1<<shift)) | ((a?1:0)<<shift);
+    cnt++;
+  }
+
+  void put2(EpdColor a, EpdColor b) {
+    put(a);
+    put(b);
+  }
+
+  void finish() {
+    if (cnt != EPD_WIDTH*EPD_HEIGHT) {
+      Serial.print("E: not enough data, got");
+      Serial.print(cnt);
+      Serial.print(", but we need ");
+      Serial.println(EPD_WIDTH*EPD_HEIGHT);
+      return;
+    }
+    if (epd.Init() != 0) {
+      Serial.println("E: e-Paper init failed");
+      return;
+    }
+    epd.Clear(1);  
+    epd.DisplayFrame(data, true);
+    epd.Sleep();
+  }
+};
+EpdUpdate epdUpdate;
 
 uint16_t win_startx = 0, win_starty = 0, win_endx = EPD_WIDTH, win_endy = EPD_HEIGHT;
 bool win_active = false;
@@ -183,7 +149,7 @@ void handle_line(const char* buf, int len) {
       return;
 
     case 'C': {
-      auto color = EPD_4IN01F_CLEAN;
+      EpdColor color = 0;
       if (buf[1] == 0) {
       } else if (buf[1] == ':' && buf[3] == 0) {
         color = char_to_color(buf[2]);
@@ -192,19 +158,24 @@ void handle_line(const char* buf, int len) {
         return;
       }
 
-      epd.Clear(color);
-
-      if (win_active) {
-        for (uint16_t y = win_starty; y < win_endy; y++) {
-          for (uint16_t x = win_startx; x < win_endx; x++) {
-            pixelIsClean.set(x + y*EPD_WIDTH, color == EPD_4IN01F_CLEAN);
-          }
-        }
-      } else if (color == EPD_4IN01F_CLEAN) {
-        pixelIsClean.set();
-      } else {
-        pixelIsClean.reset();
+      if (epd.Init() != 0) {
+        Serial.println("E: e-Paper init failed");
+        break;
       }
+      epd.Clear(color);
+      epd.Sleep();
+
+      //if (win_active) {
+      //  for (uint16_t y = win_starty; y < win_endy; y++) {
+      //    for (uint16_t x = win_startx; x < win_endx; x++) {
+      //      pixelIsClean.set(x + y*EPD_WIDTH, color == EPD_4IN01F_CLEAN);
+      //    }
+      //  }
+      //} else if (color == EPD_4IN01F_CLEAN) {
+      //  pixelIsClean.set();
+      //} else {
+      //  pixelIsClean.reset();
+      //}
       Serial.println("OK");
     }
     break;
@@ -278,9 +249,12 @@ void handle_line(const char* buf, int len) {
         Serial.println("E:INVALID");
         return;
       }
-      auto update = win_active
-        ? epd.start_partial_update(win_startx, win_starty, win_endx-win_startx, win_endy-win_starty)
-        : epd.start_full_update();
+      //TODO
+      //auto update = win_active
+      //  ? epd.start_partial_update(win_startx, win_starty, win_endx-win_startx, win_endy-win_starty)
+      //  : epd.start_full_update();
+      auto& update = epdUpdate;
+      update.begin();
       char prev = 0;
       UBYTE color = 0;
       int n = 0;
@@ -311,13 +285,15 @@ void handle_line(const char* buf, int len) {
         } else {
           auto a = char_to_color(prev);
           auto b = char_to_color(c);
-          if (a > EPD_4IN01F_CLEAN || b > EPD_4IN01F_CLEAN) {
-            Serial.println("E:INVALID");
-            return;
-          }
+          //if (a > EPD_4IN01F_CLEAN || b > EPD_4IN01F_CLEAN) {
+          //  Serial.println("E:INVALID");
+          //  return;
+          //}
           //FIXME which one should be the upper?
           //FIXME check and update pixelIsClean!
-          update.put2((a << 4) | b);
+          //update.put2((a << 4) | b);
+          update.put(a);
+          update.put(b);
           n = 0;
         }
         prev = c;
@@ -326,6 +302,7 @@ void handle_line(const char* buf, int len) {
     break;
 
     case 'P': {
+      /*
       int width = 192;
       int height = 143;
       bool ok = true;
@@ -349,15 +326,29 @@ void handle_line(const char* buf, int len) {
         return;
       }
       epd.EPD_4IN01F_Display_part(gImage_4in01f, x, y, width, height);
+      */
+
+      if (epd.Init() != 0) {
+        Serial.println("E: e-Paper init failed");
+        break;
+      }
+      Serial.print("I:3.7inch e-paper demo\r\n ");
+      Serial.print("I:e-Paper Clear\r\n ");
+      epd.Clear(1);  
+      Serial.print("I:draw image\r\n ");
+      epd.DisplayFrame(IMAGE_DATA, true);
+      epd.Sleep();
+
       Serial.println("OK");
     }
     break;
 
     case 'I':
-      if (epd.Init() == 0)
-        Serial.println("OK");
-      else
-        Serial.println("E:FAILED");
+      //if (epd.Init() == 0)
+      //  Serial.println("OK");
+      //else
+      //  Serial.println("E:FAILED");
+      Serial.println("OK");
       break;
 
     case 'h':
@@ -380,40 +371,38 @@ void handle_line(const char* buf, int len) {
   }
 }
 
-void loop() {
-  int numReceived = 0;
-  while (1) {
-    if (Serial.available()) {
-      int c = Serial.read();
-      if (c == '\n') {
-        if (numReceived < sizeof(buf)-1) {
-          buf[numReceived] = 0;
-          handle_line(buf, numReceived);
-        } else {
-          Serial.println("E:OVFL2");
-        }
-        numReceived = 0;
-      } else if (c == '\r' || c < 32 || c >= 128) {
-        // ignore
+int numReceived = 0;
+
+void poll_serial() {
+  static int prev = 0;
+  if (Serial.available()) {
+    int c = Serial.read();
+    if (c == '\n') {
+      if (numReceived < sizeof(buf)-1) {
+        buf[numReceived] = 0;
+        handle_line(buf, numReceived);
       } else {
-        numReceived++;
-        if (numReceived == sizeof(buf)-1) {
-          Serial.println("E:OVFL1");
-        } else if (numReceived < sizeof(buf)-1) {
-          buf[numReceived-1] = c;
-        }
+        Serial.println("E:OVFL2");
+      }
+      numReceived = 0;
+    } else if (c == '\r' || c < 32 || c >= 128) {
+      // ignore
+      if (c == '\r' && prev == '\r')
+        Serial.println("I: hint: use ctrl+j to send line feed");
+    } else {
+      numReceived++;
+      if (numReceived == sizeof(buf)-1) {
+        Serial.println("E:OVFL1");
+      } else if (numReceived < sizeof(buf)-1) {
+        buf[numReceived-1] = c;
       }
     }
+
+    if (c > 0)
+      prev = c;
   }
 }
 
-#else
-
-
-#include <SPI.h>
-#include "epd3in7/epd3in7.h"
-#include "epd3in7/imagedata.h"
-#include "epd3in7/epdpaint.h"
 
 #define COLORED     0
 #define UNCOLORED   1
@@ -429,8 +418,8 @@ void testEpaper(bool full);
 void testSecurityChip();
 
 void setup() {
-    // put your setup code here, to run once:
     Serial.begin(115200);
+    Serial.println("I:init");
 
     FastLED.addLeds<WS2812, WS2812_PIN>(leds, NUM_LEDS);
 
@@ -441,7 +430,7 @@ void setup() {
 
     testSecurityChip();
 
-    Serial.print("done\r\n ");
+    Serial.print("I:done\r\n ");
 }
 
 const int TOUCH_Y0 = 26;
@@ -477,7 +466,7 @@ void loop() {
   int c = analogRead(TOUCH_X0);
   int d = analogRead(TOUCH_X1);
   if (printTouch) {
-    Serial.print("Touch: ");
+    Serial.print("I:Touch: ");
     Serial.print(a);
     Serial.print(", ");
     Serial.print(b);
@@ -487,51 +476,51 @@ void loop() {
     Serial.println(d);
   }
 
-  int ch = Serial.read();
-  switch (ch) {
-    case 'T':
-      printTouch = true;
-      break;
-    case '\r':
-    case '\n':
-      Serial.print((char)c);
-      if (printTouch) {
-        printTouch = false;
-      }
-      break;
-    case 'e':
-      testEpaper(false);
-      break;
-    case 'E':
-      testEpaper(true);
-      break;
-    case 'c':
-      {
-        Epd epd;
+  if (0) {
+    int ch = Serial.read();
+    switch (ch) {
+      case 'T':
+        printTouch = true;
+        break;
+      case '\r':
+      case '\n':
+        Serial.print((char)c);
+        if (printTouch) {
+          printTouch = false;
+        }
+        break;
+      case 'e':
+        testEpaper(false);
+        break;
+      case 'E':
+        testEpaper(true);
+        break;
+      case 'c':
         if (epd.Init() != 0) {
-            Serial.print("e-Paper init failed");
+            Serial.println("E: e-Paper init failed");
         } else {
           epd.Clear(1);
           epd.Sleep();
         }
-      }
-      break;
-    case 'S':
-      testSecurityChip();
-      break;
+        break;
+      case 'S':
+        testSecurityChip();
+        break;
+    }
+  } else {
+    poll_serial();
   }
 }
 
 void testEpaper(bool full) {
-  Epd epd;
   if (epd.Init() != 0) {
-      Serial.print("e-Paper init failed");
+      Serial.println("E: e-Paper init failed");
       return;
   }
-  Serial.print("3.7inch e-paper demo\r\n ");
-  Serial.print("e-Paper Clear\r\n ");
+  Serial.print("I:3.7inch e-paper demo\r\n ");
+  Serial.print("I:e-Paper Clear\r\n ");
   epd.Clear(1);  
-  Serial.print("draw image\r\n ");
+  Serial.print("I:draw image\r\n ");
   epd.DisplayFrame(IMAGE_DATA, true);   // Set base image
 
   if (!full) {
@@ -561,7 +550,7 @@ void testEpaper(bool full) {
 
       paint.Clear(UNCOLORED);
       paint.DrawStringAt(20, 10, time_string, &Font16, COLORED);
-      Serial.print("refresh------\r\n ");
+      Serial.print("I:refresh------\r\n ");
       // epd.DisplayFrame_Partial(paint.GetImage(), 20, 100, 40, 120); // Width must be a multiple of 8
       /* Writes new data to RAM */
       epd.DisplayFrame_Part(paint.GetImage(), 40+i*40, 30, 80+i*40, 140, false);   // Xstart must be a multiple of 8
@@ -572,7 +561,7 @@ void testEpaper(bool full) {
       delay(500);
   }
   
-  Serial.print("clear and sleep......\r\n ");
+  Serial.print("I:clear and sleep......\r\n ");
   epd.Init();
   epd.Clear(1);
   epd.Sleep();
@@ -588,7 +577,7 @@ void printInfo()
   // Print useful information from configuration zone data
   Serial.println();
 
-  Serial.print("Serial Number: \t");
+  Serial.print("I:Serial Number: \t");
   for (int i = 0 ; i < 9 ; i++)
   {
     if ((atecc.serialNumber[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
@@ -596,7 +585,7 @@ void printInfo()
   }
   Serial.println();
 
-  Serial.print("Rev Number: \t");
+  Serial.print("I:Rev Number: \t");
   for (int i = 0 ; i < 4 ; i++)
   {
     if ((atecc.revisionNumber[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
@@ -604,15 +593,15 @@ void printInfo()
   }
   Serial.println();
 
-  Serial.print("Config Zone: \t");
+  Serial.print("I:Config Zone: \t");
   if (atecc.configLockStatus) Serial.println("Locked");
   else Serial.println("NOT Locked");
 
-  Serial.print("Data/OTP Zone: \t");
+  Serial.print("I:Data/OTP Zone: \t");
   if (atecc.dataOTPLockStatus) Serial.println("Locked");
   else Serial.println("NOT Locked");
 
-  Serial.print("Data Slot 0: \t");
+  Serial.print("I:Data Slot 0: \t");
   if (atecc.slot0LockStatus) Serial.println("Locked");
   else Serial.println("NOT Locked");
 
@@ -630,11 +619,11 @@ void testSecurityChip() {
 
   if (atecc.begin() == true)
   {
-    Serial.println("Successful wakeUp(). I2C connections are good.");
+    Serial.println("I:Successful wakeUp(). I2C connections are good.");
   }
   else
   {
-    Serial.println("Device not found. Check wiring.");
+    Serial.println("E:Device not found. Check wiring.");
     return;
   }
 
@@ -643,13 +632,12 @@ void testSecurityChip() {
   // check for configuration
   if (!(atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus))
   {
-    Serial.print("Device not configured. Please use the configuration sketch.");
+    Serial.println("W:Device not configured. Please use the configuration sketch.");
     return;
   }
 
   long myRandomNumber = atecc.random(100);
-  Serial.print("Random number: ");
+  Serial.print("I:Random number: ");
   Serial.println(myRandomNumber);
 }
 
-#endif
