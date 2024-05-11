@@ -188,9 +188,24 @@ void Epd::SendCommand(unsigned char command) {
 /**
  *  @brief: basic function for sending data
  */
-void Epd::SendData(unsigned char data) {
+void Epd::SendData(UBYTE data) {
     DigitalWrite(dc_pin, HIGH);
     SpiTransfer(data);
+}
+void Epd::SendData(UBYTE data, int count) {
+    for (int i=0; i<count; i++) {
+        SendData(data);
+    }
+}
+void Epd::SendData(const UBYTE *data, int count) {
+    for (int i=0; i<count; i++) {
+        SendData(data[i]);
+    }
+}
+void Epd::SendDataFromFlash(const UBYTE *data, int count) {
+    for (int i=0; i<count; i++) {
+        SendData(pgm_read_byte(&data[i]));
+    }
 }
 
 /**
@@ -235,19 +250,36 @@ void Epd::DisplayFrame(const UBYTE *Image, bool isBase) {
     SendData(0x00);
 
     SendCommand(0x24);
-    for (i = 0; i < IMAGE_COUNTER; i++) {
-        SendData(pgm_read_byte(&Image[i]));
-    }
+    SendDataFromFlash(Image, IMAGE_COUNTER);
     if(isBase) {
         SendCommand(0x26);
-        for (i = 0; i < IMAGE_COUNTER; i++) {
-            SendData(pgm_read_byte(&Image[i]));
-        }
+        SendDataFromFlash(Image, IMAGE_COUNTER);
     }
 
     Load_LUT(1);
     SendCommand(0x20);
     WaitUntilIdle();  
+}
+
+void Epd::DisplayFrameGray(const UBYTE *Image24, const UBYTE *Image26) {
+    UWORD i;
+    UWORD IMAGE_COUNTER = width * height / 8;
+
+    SendCommand(0x4E);
+    SendData(0x00);
+    SendData(0x00);
+    SendCommand(0x4F);
+    SendData(0x00);
+    SendData(0x00);
+
+    SendCommand(0x24);
+    SendDataFromFlash(Image24, IMAGE_COUNTER);
+    SendCommand(0x26);
+    SendDataFromFlash(Image26, IMAGE_COUNTER);
+
+    Load_LUT_Bytes(lut_4Gray_GC);
+    SendCommand(0x20);
+    WaitUntilIdle();
 }
 
 /******************************************************************************
@@ -334,14 +366,17 @@ function :  set the look-up tables
 parameter:
 ******************************************************************************/
 void Epd::Load_LUT(UBYTE mode) {
+    if(mode == 1)
+        Load_LUT_Bytes(lut_1Gray_GC);
+    else if(mode == 0)
+        Load_LUT_Bytes(lut_1Gray_A2);
+    else
+      ;  // Well...
+}
+void Epd::Load_LUT_Bytes(const UBYTE lut[105]) {
     UWORD i;
     SendCommand(0x32);
-    for (i = 0; i < 105; i++) {
-        if(mode == 1)
-            SendData(lut_1Gray_GC[i]);
-        else if(mode == 0)
-            SendData(lut_1Gray_A2[i]);
-    }   
+    SendData(lut, 105);
 }
 
 /******************************************************************************

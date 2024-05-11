@@ -45,14 +45,19 @@ public:
     void WaitUntilIdle(void);
     void Reset(void);
     void DisplayFrame(const UBYTE *Image, bool isBase);
+    void DisplayFrameGray(const UBYTE *Image24, const UBYTE *Image26);
     void SendCommand(unsigned char command);
     void DisplayFrame_Partial(const UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD iwidth, UWORD iheight);
     void DisplayFrame_Part(const UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD Xend, UWORD Yend, bool isGC);
     void TurnOnDisplay(void);
-    void SendData(unsigned char data);
+    void SendData(UBYTE data);
+    void SendData(UBYTE data, int count);
+    void SendData(const UBYTE *data, int count);
+    void SendDataFromFlash(const UBYTE *data, int count);
     void Sleep(void);
     void Clear(UBYTE mode);
     void Load_LUT(UBYTE mode);
+    void Load_LUT_Bytes(const UBYTE lut[105]);
 
 private:
     unsigned int reset_pin;

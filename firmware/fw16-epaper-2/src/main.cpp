@@ -96,7 +96,8 @@ EpdColor char_to_color(char c) {
 }
 
 struct EpdUpdate {
-  uint8_t data[EPD_WIDTH*EPD_HEIGHT/8];
+  uint8_t data_low24[EPD_WIDTH*EPD_HEIGHT/8];
+  uint8_t data_high26[EPD_WIDTH*EPD_HEIGHT/8];
   uint32_t cnt;
 
   void begin() {
@@ -112,7 +113,8 @@ struct EpdUpdate {
       return;
     int i = cnt/8;
     int shift = 7 - cnt%8;
-    data[i] = (data[i] & ~(1<<shift)) | ((a?1:0)<<shift);
+    data_low24[i]  = (data_low24[i]  & ~(1<<shift)) | ((a&1?1:0)<<shift);
+    data_high26[i] = (data_high26[i] & ~(1<<shift)) | ((a&2?1:0)<<shift);
     cnt++;
   }
 
@@ -134,7 +136,7 @@ struct EpdUpdate {
       return;
     }
     epd.Clear(1);  
-    epd.DisplayFrame(data, true);
+    epd.DisplayFrameGray(data_low24, data_high26);
     epd.Sleep();
   }
 };

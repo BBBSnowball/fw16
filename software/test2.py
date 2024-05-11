@@ -10,7 +10,7 @@ if len(sys.argv) == 2:
     picture_path = sys.argv[1]
 
 def color_to_char(c):
-    if c < 0 or c >= 3:
+    if not(0 <= c < 4):
         raise Exception("The image must have a palette that exactly matches the ePaper! We got c=%r." % (c,))
     return b' -+#'[c:c+1]
 
@@ -20,7 +20,7 @@ palette_image = Image.new(mode="P", size=(1,1))
 #palette_image.putpalette(b'\x00\x00\x00\xff\xff\xff\x00\xff\x00\x00\x00\xff\xff\x00\x00\xff\xff\x00\xff\x80\x00')
 # More realistic palette. Colors are extract from a photo of the actual display.
 #palette_image.putpalette(b'5-O\xcb\xc4\xb9[\x81vRJ\x80\xc0WS\xd7\xc0n\xd1~`')
-palette_image.putpalette(b'\0\0\0\xff\xff\xff')
+palette_image.putpalette(b'\0\0\0\x55\x55\x55\xab\xab\xab\xff\xff\xff')
 
 tty = serial.Serial("/dev/ttyACM0")
 #tty.write(b"\x03I\nC\nD\n")
@@ -39,7 +39,7 @@ with Image.open(picture_path) as im:
     # because quantize() won't work with "P" or "RGBA" images.
     if True:
         im = im.convert(mode="RGB")
-        im = im.quantize(colors=2, palette=palette_image)
+        im = im.quantize(colors=4, palette=palette_image)
     #print(repr(im.palette.colors))
 
     if False:
