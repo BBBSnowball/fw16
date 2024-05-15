@@ -1,0 +1,15 @@
+Adjust 3D design to active area of epaper:
+- Pixel pitch is 0.169 mm, according to
+  https://files.waveshare.com/upload/7/71/3.7inch_e-Paper_Specification.pdf
+- (That matches the active area when multiplied by 480 and 280. Good.)
+- Use test2.png:
+  - leftmost column is visible but barely
+  - top is visible and has a gap of maybe 5 px
+  - 11 rows are hidden at the bottom
+  - 1.5 rows are hidden at the right
+- Let's aim for a gap of 2 px, i.e. 0.34 mm.
+- Adjust (positive is towards the middle):
+  left: -0.15 mm
+  top: +0.5 mm
+  right: -0.6 mm
+  bottom: -2.2 mm
