@@ -10,6 +10,8 @@ Adjust 3D design to active area of epaper:
 - Let's aim for a gap of 2 px, i.e. 0.34 mm.
 - Adjust (positive is towards the middle):
   left: -0.15 mm
-  top: +0.5 mm
+  top: +0.5 mm -> +0.3 mm
   right: -0.6 mm
-  bottom: -2.2 mm
+  bottom: -2.2 mm -> -1.2 mm
+
+  Left and right are swapped when looking at the sketch!
