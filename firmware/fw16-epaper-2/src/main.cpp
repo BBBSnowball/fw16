@@ -155,6 +155,7 @@ EpdUpdate epdUpdate;
 
 uint16_t win_startx = 0, win_starty = 0, win_endx = EPD_WIDTH, win_endy = EPD_HEIGHT;
 bool win_active = false;
+bool printGesture = false;
 
 void handle_line(const char* buf, int len) {
   switch (buf[0]) {
@@ -372,6 +373,27 @@ void handle_line(const char* buf, int len) {
       testGestureChip();
       break;
 
+    case 'G':
+      if (strcmp(buf, "G:0") == 0) {
+        apds.enableProximity(true);
+        apds.enableGesture(true);
+        printGesture = false;
+        Serial.println("OK");
+      } else if (strcmp(buf, "G:1") == 0) {
+        apds.enableProximity(true);
+        apds.enableGesture(true);
+        printGesture = true;
+        Serial.println("OK");
+      } else if (memcmp(buf, "GLED:", 5) == 0 && buf[6] == ',' && buf[8] == 0) {
+        auto led = 3 - (buf[5] - '0') & 0x3; // we invert it because 0=100mA and 3=12mA
+        auto boost = (buf[7] - '0') & 0x3;
+        apds.setLED((apds9960LedDrive_t)led, (apds9960LedBoost_t)boost);
+        Serial.println("OK");
+      } else {
+        Serial.println("E:INVALID");
+      }
+      break;
+
     case 's':
       scanI2C();
       break;
@@ -500,6 +522,16 @@ void loop() {
     Serial.print(c);
     Serial.print(", ");
     Serial.println(d);
+  }
+
+  if (printGesture) {
+    auto gesture = apds.readGesture();
+    switch (gesture) {
+      case APDS9960_DOWN:  Serial.println("I:GESTURE=DOWN");  break;
+      case APDS9960_UP:    Serial.println("I:GESTURE=UP");    break;
+      case APDS9960_LEFT:  Serial.println("I:GESTURE=LEFT");  break;
+      case APDS9960_RIGHT: Serial.println("I:GESTURE=RIGHT"); break;
+    }
   }
 
   if (0) {
