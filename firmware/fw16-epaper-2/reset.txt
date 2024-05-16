@@ -1,0 +1,17 @@
+picotool:
+- https://github.com/raspberrypi/picotool/blob/f6fe6b7c321a2def8950d2a440335dfba19e2eab/main.cpp#L2070
+- https://lorenz-ruprecht.at/docu/pico-sdk/1.4.0/html/usb__reset__interface_8h.html
+- /home/user2/.platformio/packages/framework-arduinopico/pico-sdk/src/rp2_common/pico_stdio_usb/stdio_usb_descriptors.c, TUD_RPI_RESET_DESCRIPTOR
+- /home/user2/.platformio/packages/framework-arduinopico/cores/rp2040/RP2040USB.cpp
+- /home/user2/.platformio/packages/framework-arduinopico/pico-sdk/src/rp2_common/pico_stdio_usb/reset_interface.c
+- In short, there is a dedicated interface and we send RESET_REQUEST_BOOTSEL to it.
+
+Arduino, use_1200bps_touch:
+- /home/user2/.platformio/packages/framework-arduinopico/libraries/Adafruit_TinyUSB_Arduino/src/arduino/Adafruit_USBD_CDC.cpp, tud_cdc_line_state_cb
+- ./libraries/Adafruit_TinyUSB_Arduino/src/arduino/ports/rp2040/Adafruit_TinyUSB_rp2040.cpp, TinyUSB_Port_EnterDFU
+  -> reset_usb_boot(0, 0); while (1);
+- open serial port at 1200 bps and toggle DTR
+
+pico-sdk also seems to have some support for resetting by magic baudrate:
+https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/pico_stdio_usb/reset_interface.c
+

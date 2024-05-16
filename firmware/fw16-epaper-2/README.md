@@ -1,4 +1,4 @@
-Pins of RP2040-Tiny:
+Pins of RP2040-Tiny - only for initial prototype:
 - left:
   - 29: SPI1 CSn
   - 28: (SPI1 RX), DC
@@ -20,3 +20,10 @@ Pins of RP2040-Tiny:
   - 3
   - 2
   - 1
+
+APDS-9960:
+We have [this module from Berrybase](https://www.berrybase.de/apds-9960-rgb-infrarot-gestensensor),
+which doesn't seem to be an original chip. Its ID is 0xA8 instead of 0xAB, so we have to patch the
+library. See [here](https://github.com/sparkfun/APDS-9960_RGB_and_Gesture_Sensor/pull/25) for the
+same issue with a sensor baught on AliExpress.
+

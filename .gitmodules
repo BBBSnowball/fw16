@@ -7,3 +7,9 @@
 [submodule "firmware/fw16-epaper-2/lib/SparkFun_ATECCX08a_Arduino_Library"]
 	path = firmware/fw16-epaper-2/lib/SparkFun_ATECCX08a_Arduino_Library
 	url = https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library
+[submodule "firmware/fw16-epaper-2/lib/Adafruit_APDS9960"]
+	path = firmware/fw16-epaper-2/lib/Adafruit_APDS9960
+	url = https://github.com/adafruit/Adafruit_APDS9960
+[submodule "firmware/fw16-epaper-2/lib/Adafruit_BusIO"]
+	path = firmware/fw16-epaper-2/lib/Adafruit_BusIO
+	url = https://github.com/adafruit/Adafruit_BusIO

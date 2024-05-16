@@ -26,6 +26,7 @@
 #include <Wire.h>
 #include <SparkFun_ATECCX08a_Arduino_Library.h>
 #include <bitset>
+#include <Adafruit_APDS9960.h>
 
 #include <SPI.h>
 #include "epd3in7/epd3in7.h"
@@ -40,6 +41,16 @@ Epd epd;
 #define WS2812_PIN 16
 
 CRGB leds[NUM_LEDS];
+
+#define APDS_INT_PIN 14
+Adafruit_APDS9960 apds;
+
+ATECCX08A atecc;
+
+void testEpaper(bool full);
+void testSecurityChip();
+void testGestureChip();
+void scanI2C();
 
 #if 1
 #include "pico/printf.h"
@@ -353,6 +364,18 @@ void handle_line(const char* buf, int len) {
       Serial.println("OK");
       break;
 
+    case 'S':
+      testSecurityChip();
+      break;
+
+    case 'A':
+      testGestureChip();
+      break;
+
+    case 's':
+      scanI2C();
+      break;
+
     case 'h':
     case 'H':
     case '?':
@@ -414,11 +437,6 @@ Paint paint(image, 0, 0);    // width should be the multiple of 8
 UDOUBLE time_start_ms;
 UDOUBLE time_now_s;
 
-ATECCX08A atecc;
-
-void testEpaper(bool full);
-void testSecurityChip();
-
 void setup() {
     Serial.begin(115200);
     Serial.println("I:init");
@@ -428,9 +446,15 @@ void setup() {
     leds[0] = CRGB(0, 0, 3);
     FastLED.show();
 
-    testEpaper(false);
+    Wire.setSDA(12);
+    Wire.setSCL(13);
+    Wire.begin();
 
     testSecurityChip();
+
+    testGestureChip();
+
+    testEpaper(false);
 
     Serial.print("I:done\r\n ");
 }
@@ -507,6 +531,9 @@ void loop() {
         break;
       case 'S':
         testSecurityChip();
+        break;
+      case 'A':
+        testGestureChip();
         break;
     }
   } else {
@@ -613,10 +640,6 @@ void printInfo()
 }
 
 void testSecurityChip() {
-  Wire.setSDA(12);
-  Wire.setSCL(13);
-  Wire.begin();
-
   // copied from https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library/blob/master/examples/Example5_Random/Example5_Random.ino
 
   if (atecc.begin() == true)
@@ -643,3 +666,60 @@ void testSecurityChip() {
   Serial.println(myRandomNumber);
 }
 
+void testGestureChip() {
+  pinMode(APDS_INT_PIN, INPUT_PULLUP);
+
+  if(!apds.begin()) {
+    Serial.println("APDS: failed to initialize device");
+    return;
+  }
+  Serial.println("APDS-9960 found.");
+
+  apds.enableColor(true);
+
+  while(!apds.colorDataReady()) {
+    delay(5);
+  }
+
+  uint16_t r, g, b, c;
+  apds.getColorData(&r, &g, &b, &c);
+  Serial.print("color:");
+  Serial.print(" r="); Serial.print(r);
+  Serial.print(" g="); Serial.print(g);
+  Serial.print(" b="); Serial.print(b);
+  Serial.print(" c="); Serial.print(c);
+  Serial.println();
+
+  apds.enableProximity(true);
+  apds.setProximityInterruptThreshold(0, 175);
+  apds.enableProximityInterrupt();
+}
+
+void scanI2C() {
+  int nDevices;
+ 
+  Serial.println("I:Scanning...");
+ 
+  nDevices = 0;
+  for (int address = 0; address < 127; address++) {
+    if (address % 16 == 0) {
+      if (address)
+        Serial.println();
+      Serial.print("I: ");
+      Serial.print(address, HEX);
+      Serial.print(":");
+    }
+
+    Serial.print(" ");
+
+    Wire.beginTransmission(address);
+    int error = Wire.endTransmission();
+
+    if (error == 0) {
+      Serial.print(address, HEX);
+    } else {
+      Serial.print("--");
+    }
+  }
+  Serial.println("OK");
+}
